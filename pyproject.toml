@@ -1,0 +1,39 @@
+[build-system]
+requires = ["setuptools>=68.0.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "hn-analytical-platform"
+version = "0.1.0"
+description = "Data Lake analítico basado en datos públicos de Hacker News"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "pandas>=3.0.0",
+    "pyarrow>=23.0.0",
+    "python-dotenv>=1.2.1",
+    "requests>=2.32.5",
+]
+license = {text = "MIT"}
+authors = [
+    {name = "Gerardo Toboso", email = "gerardotoboso1909@gmail.com"}
+]
+maintainers = [
+    {name = "Gerardo Toboso", email = "gerardotoboso1909@gmail.com"}
+]
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["*"]
+exclude = ["tests*", "*.tests*", "*.tests.*"]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.0.2",
+    "pytest-check>=2.6.2",
+    "pytest-cov>=7.0.0",
+    "pytest-html==3.2.0",
+]

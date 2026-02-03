@@ -1,0 +1,186 @@
+x-airflow-common: &airflow-common
+    build:
+        context: ../..
+        dockerfile: infrastructure/docker/Dockerfile.airflow
+    user: root
+    environment: &airflow-common-env # Cuestiones de airflow
+        AIRFLOW__CORE__EXECUTOR: LocalExecutor
+        AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:${POSTGRES_PASSWORD}@postgres/airflow
+        AIRFLOW__CORE__FERNET_KEY: ${AIRFLOW_FERNET_KEY}
+        AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: "false"
+        AIRFLOW__CORE__LOAD_EXAMPLES: "false"
+        AIRFLOW__WEBSERVER__SECRET_KEY: ${AIRFLOW_SECRET_KEY}
+
+        # Cuestiones de buckets y python
+        AWS_ACCESS_KEY_ID: ${MINIO_ROOT_USER}
+        AWS_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD}
+        AWS_ENDPOINT_URL: ${MINIO_ENDPOINT_URL}
+        PYTHONPATH: /opt/airflow
+        PYTHONUNBUFFERED: 1
+    volumes:
+        - ../orchestration/dags:/opt/airflow/dags
+        - ../orchestration/logs:/opt/airflow/logs
+        - ../orchestration/plugins:/opt/airflow/plugins
+        - ../../src:/opt/airflow/src
+        - ../../data:/opt/airflow/data
+        - airflow-packages:/home/airflow/.local
+    depends_on:
+        postgres:
+            condition: service_healthy
+        minio:
+            condition: service_healthy
+
+services:
+    postgres:
+        image: postgres:15-alpine
+        environment:
+            POSTGRES_USER: ${POSTGRES_USER}
+            POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+            POSTGRES_DB: ${POSTGRES_DB}
+        volumes:
+            - postgres-db-volume:/var/lib/postgresql/data
+        healthcheck:
+            test: ["CMD", "pg_isready", "-U", "${POSTGRES_USER}"]
+            interval: 5s
+            retries: 5
+        restart: always
+        networks:
+            - airflow-network
+
+    minio:
+        image: minio/minio:latest
+        command: server /data --console-address ":9001"
+        ports:
+            - "127.0.0.1:9000:9000"
+            - "127.0.0.1:9001:9001"
+        environment:
+            MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+            MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+        volumes:
+            - minio-data:/data
+        healthcheck:
+            test: ["CMD", "mc", "ready", "local"]
+            interval: 5s
+            timeout: 5s
+            retries: 5
+        restart: always
+        networks:
+            - airflow-network
+
+    airflow-webserver:
+        <<: *airflow-common
+        command: webserver
+        ports:
+            - "127.0.0.1:8080:8080"
+        restart: always
+        healthcheck:
+            test: ["CMD", "curl", "--fail", "http://localhost:8080/health"]
+            interval: 30s
+            timeout: 10s
+            retries: 5
+        depends_on:
+            airflow-init:
+                condition: service_completed_successfully
+        networks:
+            - airflow-network
+
+    airflow-scheduler:
+        <<: *airflow-common
+        command: scheduler
+        restart: always
+        user: airflow
+        networks:
+            - airflow-network
+
+    airflow-init:
+        <<: *airflow-common
+        entrypoint: /bin/bash
+        command:
+            - -c
+            - |
+                mkdir -p /opt/airflow/{logs,dags,plugins}
+
+                chown -R airflow:root /opt/airflow/{logs,dags,plugins}
+                chmod -R 775 /opt/airflow/logs
+
+                airflow db migrate
+
+                airflow users create \
+                  --username "${AIRFLOW_ADMIN_USERNAME}" \
+                  --password "${AIRFLOW_ADMIN_PASSWORD}" \
+                  --firstname Admin \
+                  --lastname User \
+                  --role Admin \
+                  --email admin@example.com || true
+        environment:
+            <<: *airflow-common-env
+        restart: "no"
+        depends_on:
+            postgres:
+                condition: service_healthy
+        networks:
+            - airflow-network
+
+    app-dev:
+        build:
+            context: ../..
+            dockerfile: infrastructure/docker/Dockerfile.dev
+        profiles:
+            - dev
+        volumes:
+            - ../../src:/app/src:rw
+            - ../../tests:/app/tests:rw
+            - ../../data:/app/data:rw
+            - ../../pyproject.toml:/app/pyproject.toml:ro
+            - ../../pytest.ini:/app/pytest.ini:ro
+            - dev-pytest-cache:/app/.pytest_cache
+            - dev-coverage:/app/reports
+        environment:
+            AWS_ACCESS_KEY_ID: ${MINIO_ROOT_USER}
+            AWS_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD}
+            AWS_ENDPOINT_URL: ${MINIO_ENDPOINT_URL}
+            PYTHONUNBUFFERED: 1
+            PYTEST_CACHE_DIR: /app/.pytest_cache
+        depends_on:
+            minio:
+                condition: service_healthy
+            postgres:
+                condition: service_healthy
+        networks:
+            - airflow-network
+        command:
+            ["bash", "-c", "echo 'Dev container ready' && tail -f /dev/null"]
+
+    app-prod:
+        build:
+            context: ../..
+            dockerfile: infrastructure/docker/Dockerfile
+        profiles:
+            - prod
+        volumes:
+            - ../../src:/app/src:ro
+            - ../../data:/app/data:rw
+            - ../../pyproject.toml:/app/pyproject.toml:ro
+        environment:
+            AWS_ACCESS_KEY_ID: ${MINIO_ROOT_USER}
+            AWS_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD}
+            AWS_ENDPOINT_URL: ${MINIO_ENDPOINT_URL}
+            PYTHONUNBUFFERED: 1
+        depends_on:
+            minio:
+                condition: service_healthy
+        networks:
+            - airflow-network
+        command:
+            ["bash", "-c", "echo 'Prod container ready' && tail -f /dev/null"]
+
+volumes:
+    postgres-db-volume:
+    minio-data:
+    airflow-packages:
+    dev-pytest-cache:
+    dev-coverage:
+
+networks:
+    airflow-network:
+        driver: bridge

@@ -15,6 +15,11 @@ reports/
 logs/
 .env
 SISTEMA.md
+*.tfvars
+.terraform*
+terraform.tfstate*
+secrets/
+orchestration/logs/
 
 # Testing
 .coverage

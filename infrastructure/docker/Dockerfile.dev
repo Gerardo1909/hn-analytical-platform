@@ -1,0 +1,63 @@
+## ------------------------------- Builder Stage ------------------------------ ##
+FROM python:3.13-bookworm AS builder
+
+# Instalar dependencias para build
+RUN apt-get update && apt-get install --no-install-recommends -y \
+        build-essential \
+        curl && \
+    apt-get clean && rm -rf /var/lib/apt/lists/*
+
+# Instalar uv
+ADD https://astral.sh/uv/install.sh /install.sh
+RUN chmod -R 655 /install.sh && /install.sh && rm /install.sh
+ENV PATH="/root/.local/bin:${PATH}"
+
+WORKDIR /app
+
+# Copiar archivos de dependencia
+COPY pyproject.toml uv.lock ./
+
+# Sincronizar dependencias para build (en este caso tambien se incluyen las usadas en testing)
+RUN uv sync --frozen --all-groups --no-install-project
+
+## ------------------------------- Development Stage ------------------------------ ##
+FROM python:3.13-bookworm AS development
+
+# Instalar dependencias para producción
+RUN apt-get update && apt-get install --no-install-recommends -y \
+        curl \
+        procps \
+        git \
+        vim \
+        less && \
+    apt-get clean && rm -rf /var/lib/apt/lists/*
+
+# Instalar uv en desarrollo para poder instalar el proyecto
+ADD https://astral.sh/uv/install.sh /install.sh
+RUN chmod -R 655 /install.sh && /install.sh && rm /install.sh
+ENV PATH="/root/.local/bin:${PATH}"
+
+# Se crea usuario para producción
+RUN useradd --create-home --shell /bin/bash appuser
+
+WORKDIR /app
+
+# Se copia entorno virtual desde builder
+COPY --from=builder /app/.venv .venv
+
+# Se copia código de aplicación incluyendo tests
+COPY --chown=appuser:appuser ./src ./src
+COPY --chown=appuser:appuser ./tests ./tests
+COPY --chown=appuser:appuser ./pyproject.toml ./
+COPY --chown=appuser:appuser ./pytest.ini ./pytest.ini
+
+# Se instala proyecto en modo editable para hot-reload
+RUN uv pip install --no-deps -e . --python .venv/bin/python
+
+USER appuser
+
+# Environment
+ENV PATH="/app/.venv/bin:$PATH"
+ENV PYTHONPATH="/app/src:${PYTHONPATH}"
+ENV PYTHONUNBUFFERED=1
+ENV PYTEST_CACHE_DIR=/app/.pytest_cache

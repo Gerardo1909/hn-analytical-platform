@@ -41,3 +41,13 @@ resource "aws_s3_object" "output" {
   bucket = aws_s3_bucket.datalake.id
   key    = "output/"
 }
+
+resource "aws_s3_object" "logs" {
+  bucket = aws_s3_bucket.datalake.id
+  key    = "logs/"
+}
+
+resource "aws_s3_object" "metadata" {
+  bucket = aws_s3_bucket.datalake.id
+  key    = "metadata/"
+}

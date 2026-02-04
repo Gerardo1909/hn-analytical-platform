@@ -54,6 +54,9 @@ COPY --chown=appuser:appuser ./pytest.ini ./pytest.ini
 # Se instala proyecto en modo editable para hot-reload
 RUN uv pip install --no-deps -e . --python .venv/bin/python
 
+# Crear el directorio de datos/logs y asegurar que appuser sea el dueño
+RUN mkdir -p /app/data && chown -R appuser:appuser /app/data
+
 USER appuser
 
 # Environment

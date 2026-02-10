@@ -49,6 +49,9 @@ COPY --chown=appuser:appuser ./pyproject.toml ./
 # Se instala el proyecto
 RUN uv pip install --no-deps -e . --python .venv/bin/python
 
+# Crear el directorio de datos/logs y asegurar que appuser sea el dueño
+RUN mkdir -p /app/data && chown -R appuser:appuser /app/data
+
 USER appuser
 
 # Variables de entorno

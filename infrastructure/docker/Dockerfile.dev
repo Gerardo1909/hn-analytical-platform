@@ -23,7 +23,7 @@ RUN uv sync --frozen --all-groups --no-install-project
 ## ------------------------------- Development Stage ------------------------------ ##
 FROM python:3.13-bookworm AS development
 
-# Instalar dependencias para producción
+# Instalar dependencias para desarrollo
 RUN apt-get update && apt-get install --no-install-recommends -y \
         curl \
         procps \
@@ -37,24 +37,22 @@ ADD https://astral.sh/uv/install.sh /install.sh
 RUN chmod -R 655 /install.sh && /install.sh && rm /install.sh
 ENV PATH="/root/.local/bin:${PATH}"
 
-# Se crea usuario para producción
-RUN useradd --create-home --shell /bin/bash appuser
-
 WORKDIR /app
 
 # Se copia entorno virtual desde builder
 COPY --from=builder /app/.venv .venv
 
 # Se copia código de aplicación incluyendo tests
-COPY --chown=appuser:appuser ./src ./src
-COPY --chown=appuser:appuser ./tests ./tests
-COPY --chown=appuser:appuser ./pyproject.toml ./
-COPY --chown=appuser:appuser ./pytest.ini ./pytest.ini
+COPY ./src ./src
+COPY ./tests ./tests
+COPY ./pyproject.toml ./
+COPY ./pytest.ini ./pytest.ini
 
 # Se instala proyecto en modo editable para hot-reload
 RUN uv pip install --no-deps -e . --python .venv/bin/python
 
-USER appuser
+# Crear el directorio de datos/logs
+RUN mkdir -p /app/data
 
 # Environment
 ENV PATH="/app/.venv/bin:$PATH"

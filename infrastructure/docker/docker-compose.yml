@@ -15,6 +15,7 @@ x-airflow-common: &airflow-common
         AWS_ACCESS_KEY_ID: ${MINIO_ROOT_USER}
         AWS_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD}
         AWS_ENDPOINT_URL: ${MINIO_ENDPOINT_URL}
+        AWS_BUCKET_NAME: ${MINIO_BUCKET_NAME}
         PYTHONPATH: /opt/airflow
         PYTHONUNBUFFERED: 1
     volumes:
@@ -128,17 +129,17 @@ services:
         profiles:
             - dev
         volumes:
-            - ../../src:/app/src:rw
-            - ../../tests:/app/tests:rw
-            - ../../data:/app/data:rw
-            - ../../pyproject.toml:/app/pyproject.toml:ro
-            - ../../pytest.ini:/app/pytest.ini:ro
+            - ../../src:/app/src
+            - ../../tests:/app/tests
+            - ../../pyproject.toml:/app/pyproject.toml
+            - ../../pytest.ini:/app/pytest.ini
             - dev-pytest-cache:/app/.pytest_cache
             - dev-coverage:/app/reports
         environment:
             AWS_ACCESS_KEY_ID: ${MINIO_ROOT_USER}
             AWS_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD}
             AWS_ENDPOINT_URL: ${MINIO_ENDPOINT_URL}
+            AWS_BUCKET_NAME: ${MINIO_BUCKET_NAME}
             PYTHONUNBUFFERED: 1
             PYTEST_CACHE_DIR: /app/.pytest_cache
         depends_on:
@@ -159,12 +160,12 @@ services:
             - prod
         volumes:
             - ../../src:/app/src:ro
-            - ../../data:/app/data:rw
             - ../../pyproject.toml:/app/pyproject.toml:ro
         environment:
             AWS_ACCESS_KEY_ID: ${MINIO_ROOT_USER}
             AWS_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD}
             AWS_ENDPOINT_URL: ${MINIO_ENDPOINT_URL}
+            AWS_BUCKET_NAME: ${MINIO_BUCKET_NAME}
             PYTHONUNBUFFERED: 1
         depends_on:
             minio:

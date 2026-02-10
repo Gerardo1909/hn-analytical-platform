@@ -2,6 +2,7 @@
 Lógica de negocio para fetch de historias y comentarios.
 """
 
+from asyncio import Runner
 from datetime import datetime, timedelta
 from typing import Any, Dict, Generator, List
 
@@ -31,7 +32,11 @@ class HNFetcher:
             Lista de historias (dicts) de la última semana
         """
         logger.info(f"Extrayendo top {max_stories} historias...")
-        top_story_ids = self.api_client.get_top_stories()[:max_stories]
+        top_stories = self.api_client.get_top_stories()
+        if not top_stories:
+            logger.error("No se pudieron obtener historias, verificar API")
+            raise RuntimeError("No se pudieron obtener historias, verificar API")
+        top_story_ids = top_stories[:max_stories]
 
         one_week_ago = datetime.utcnow() - timedelta(days=7)
         one_week_ago_ts = int(one_week_ago.timestamp())

@@ -1,5 +1,5 @@
 """
-Módulo para controlar logging del evaluador
+Módulo para controlar logging del sistema
 """
 
 import logging

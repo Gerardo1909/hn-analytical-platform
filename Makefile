@@ -134,4 +134,4 @@ prod-run: ## Ejecuta un comando en el contenedor prod (CMD=...)
 # Tests
 # ----------------------------------------------------------------------------
 test: ## Ejecuta los tests en el contenedor de desarrollo
-	$(DOCKER_COMPOSE) --profile dev run --rm app-dev pytest -v
+	$(DOCKER_COMPOSE) --profile dev run --rm app-dev uv run pytest

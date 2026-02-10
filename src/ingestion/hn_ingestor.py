@@ -4,10 +4,9 @@ Módulo encargado de ejecutar el proceso de ingesta desde HackerNews.
 
 from typing import Any, Dict, List, Set
 
-from hn_client import HNClient
-from hn_fetcher import HNFetcher
-from story_tracker import StoryTracker
-
+from ingestion.hn_client import HNClient
+from ingestion.hn_fetcher import HNFetcher
+from ingestion.story_tracker import StoryTracker
 from utils.layer_storage_writer import LayerStorageWriter
 from utils.logger import ingestion_logger as logger
 

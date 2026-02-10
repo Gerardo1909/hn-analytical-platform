@@ -6,11 +6,11 @@ import os
 import sys
 
 import boto3
-from hn_client import HNClient
-from hn_fetcher import HNFetcher
-from hn_ingestor import HNIngestor
-from story_tracker import StoryTracker
 
+from ingestion.hn_client import HNClient
+from ingestion.hn_fetcher import HNFetcher
+from ingestion.hn_ingestor import HNIngestor
+from ingestion.story_tracker import StoryTracker
 from utils.layer_storage_writer import LayerStorageWriter
 from utils.logger import get_log_file_path
 from utils.logger import ingestion_logger as logger

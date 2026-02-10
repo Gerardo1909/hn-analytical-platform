@@ -6,8 +6,7 @@ from asyncio import Runner
 from datetime import datetime, timedelta
 from typing import Any, Dict, Generator, List
 
-from hn_client import HNClient
-
+from ingestion.hn_client import HNClient
 from utils.logger import ingestion_logger as logger
 
 

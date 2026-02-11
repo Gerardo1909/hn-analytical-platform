@@ -69,3 +69,4 @@ def get_log_file_path(filename: str) -> str:
 # Loggers
 ingestion_logger = get_logger(name="ingestion_logger", filename="ingestion.log")
 storage_writer_logger = get_logger(name="storage_writer", filename="storage.log")
+processing_logger = get_logger(name="processing_logger", filename="processing.log")

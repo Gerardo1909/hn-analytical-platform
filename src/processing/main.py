@@ -16,13 +16,12 @@ from utils.logger import get_log_file_path
 from utils.logger import processing_logger as logger
 
 
-def run(ingestion_date: str | None = None):
+def run(ingestion_date: str):
     """
     Punto de entrada principal: inicializa componentes y ejecuta procesamiento.
 
     Args:
         ingestion_date: Fecha de ingesta a procesar (YYYY-MM-DD).
-                        Si no se provee, usa la fecha actual.
     """
     ingestion_date = ingestion_date or datetime.utcnow().strftime("%Y-%m-%d")
 
@@ -81,6 +80,8 @@ if __name__ == "__main__":
     try:
         # Permite pasar la fecha como argumento: python -m processing.main 2026-02-01
         date_arg = sys.argv[1] if len(sys.argv) > 1 else None
+        if not date_arg:
+            raise ValueError("Fecha de ingesta no proporcionada")
         run(ingestion_date=date_arg)
     except Exception:
         sys.exit(1)

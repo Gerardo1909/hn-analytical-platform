@@ -20,6 +20,12 @@ from quality.checks import (
 from utils.logger import quality_logger as logger
 
 
+class QualityCheckError(Exception):
+    """Se lanza cuando checks de calidad críticos fallan."""
+
+    pass
+
+
 @dataclass
 class QualityReport:
     """

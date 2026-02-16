@@ -25,9 +25,23 @@ def mock_writer():
 
 
 @pytest.fixture
-def hn_processor(mock_loader, mock_writer):
+def mock_quality_runner():
+    """Fixture que retorna un mock del runner de calidad."""
+    mock = Mock()
+    report_mock = Mock()
+    report_mock.to_dict.return_value = {}
+    report_mock.has_critical_failures = False
+    mock.run_story_checks.return_value = report_mock
+    mock.run_comment_checks.return_value = report_mock
+    return mock
+
+
+@pytest.fixture
+def hn_processor(mock_loader, mock_writer, mock_quality_runner):
     """Fixture que retorna una instancia de HNProcessor con mocks."""
-    return HNProcessor(loader=mock_loader, writer=mock_writer)
+    return HNProcessor(
+        loader=mock_loader, writer=mock_writer, quality_runner=mock_quality_runner
+    )
 
 
 @pytest.fixture

@@ -8,20 +8,20 @@ from datetime import datetime
 
 import boto3
 
-from processing.hn_processor import HNProcessor
+from processing.hn_processor import HNProcessor, QualityCheckError
+from quality.runner import QualityRunner
 from utils.layer_storage_loader import LayerStorageLoader
 from utils.layer_storage_writer import LayerStorageWriter
 from utils.logger import get_log_file_path
 from utils.logger import processing_logger as logger
 
 
-def run(ingestion_date: str | None = None):
+def run(ingestion_date: str):
     """
     Punto de entrada principal: inicializa componentes y ejecuta procesamiento.
 
     Args:
         ingestion_date: Fecha de ingesta a procesar (YYYY-MM-DD).
-                        Si no se provee, usa la fecha actual.
     """
     ingestion_date = ingestion_date or datetime.utcnow().strftime("%Y-%m-%d")
 
@@ -39,7 +39,8 @@ def run(ingestion_date: str | None = None):
 
     loader = LayerStorageLoader(bucket_name=bucket_name, s3_client=s3_client)
     writer = LayerStorageWriter(bucket_name=bucket_name, s3_client=s3_client)
-    processor = HNProcessor(loader=loader, writer=writer)
+    quality_runner = QualityRunner()
+    processor = HNProcessor(loader=loader, writer=writer, quality_runner=quality_runner)
 
     try:
         stats = processor.process(ingestion_date)
@@ -53,6 +54,10 @@ def run(ingestion_date: str | None = None):
             f"{stats['comments_orphaned']} huérfanos descartados)"
         )
 
+    except QualityCheckError as e:
+        logger.error(f"Fallo de calidad bloqueante: {e}")
+        raise
+
     except Exception as e:
         logger.error(f"Error durante el procesamiento: {e}", exc_info=True)
         raise
@@ -61,10 +66,12 @@ def run(ingestion_date: str | None = None):
         try:
             processing_log_file = get_log_file_path("processing.log")
             storage_log_file = get_log_file_path("storage.log")
+            quality_log_file = get_log_file_path("quality.log")
             writer.upload_log_file(
                 pipeline="processing", log_file_path=processing_log_file
             )
             writer.upload_log_file(pipeline="storage", log_file_path=storage_log_file)
+            writer.upload_log_file(pipeline="quality", log_file_path=quality_log_file)
         except Exception as e:
             logger.error(f"No se pudo subir el log a S3: {e}")
 
@@ -73,6 +80,8 @@ if __name__ == "__main__":
     try:
         # Permite pasar la fecha como argumento: python -m processing.main 2026-02-01
         date_arg = sys.argv[1] if len(sys.argv) > 1 else None
+        if not date_arg:
+            raise ValueError("Fecha de ingesta no proporcionada")
         run(ingestion_date=date_arg)
     except Exception:
         sys.exit(1)

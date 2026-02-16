@@ -1,15 +1,23 @@
 """
 Módulo encargado de procesar datos crudos desde raw/ hacia processed/.
-Normaliza, deduplica y valida integridad referencial.
+Normaliza, deduplica, valida integridad referencial y ejecuta checks
+de calidad antes de persistir.
 """
 
 from typing import Any, Dict
 
 import pandas as pd
 
+from quality.runner import QualityRunner
 from utils.layer_storage_loader import LayerStorageLoader
 from utils.layer_storage_writer import LayerStorageWriter
 from utils.logger import processing_logger as logger
+
+
+class QualityCheckError(Exception):
+    """Se lanza cuando checks de calidad críticos fallan."""
+
+    pass
 
 
 class HNProcessor:
@@ -20,7 +28,8 @@ class HNProcessor:
     2. Normalizar a formato tabular con tipado explícito
     3. Deduplicar por (id, ingestion_date)
     4. Validar integridad referencial (comentarios -> historias/comentarios)
-    5. Guardar como Parquet en processed/
+    5. Ejecutar checks de calidad (fail early si hay fallos críticos)
+    6. Guardar como Parquet en processed/
     """
 
     STORY_COLUMNS = [
@@ -50,14 +59,21 @@ class HNProcessor:
         "deleted",
     ]
 
-    def __init__(self, loader: LayerStorageLoader, writer: LayerStorageWriter):
+    def __init__(
+        self,
+        loader: LayerStorageLoader,
+        writer: LayerStorageWriter,
+        quality_runner: QualityRunner,
+    ):
         """
         Args:
             loader: Loader para leer datos desde S3
             writer: Writer para guardar datos en S3
+            quality_runner: Runner de checks de calidad
         """
         self.loader = loader
         self.writer = writer
+        self.quality_runner = quality_runner
 
     def process(self, ingestion_date: str) -> Dict[str, Any]:
         """
@@ -76,7 +92,12 @@ class HNProcessor:
                 "comments_processed": int,
                 "comments_duplicates_removed": int,
                 "comments_orphaned": int,
+                "quality_stories": dict,
+                "quality_comments": dict,
             }
+
+        Raises:
+            QualityCheckError: Si checks críticos de calidad fallan
         """
 
         # 1. Cargar datos crudos
@@ -91,6 +112,8 @@ class HNProcessor:
             "comments_processed": 0,
             "comments_duplicates_removed": 0,
             "comments_orphaned": 0,
+            "quality_stories": None,
+            "quality_comments": None,
         }
 
         stories_deduped = pd.DataFrame()
@@ -134,7 +157,40 @@ class HNProcessor:
 
             stats["comments_processed"] = len(comments_valid)
 
-        # 5. Guardar en processed/
+        # 5. Checks de calidad (después de transformar, antes de escribir)
+        if not stories_deduped.empty:
+            story_report = self.quality_runner.run_story_checks(
+                stories_deduped, ingestion_date
+            )
+            stats["quality_stories"] = story_report.to_dict()
+            self._save_quality_report(story_report.to_dict(), "stories", ingestion_date)
+
+            if story_report.has_critical_failures:
+                raise QualityCheckError(
+                    f"Checks críticos fallidos en stories para {ingestion_date}. "
+                    f"Revisar reporte en output/quality_reports/"
+                )
+
+        if not comments_valid.empty:
+            # Construir DataFrame de parents válidos (stories + comments)
+            valid_parent_df = self._build_valid_parent_df(
+                stories_deduped, comments_valid
+            )
+            comment_report = self.quality_runner.run_comment_checks(
+                comments_valid, valid_parent_df, ingestion_date
+            )
+            stats["quality_comments"] = comment_report.to_dict()
+            self._save_quality_report(
+                comment_report.to_dict(), "comments", ingestion_date
+            )
+
+            if comment_report.has_critical_failures:
+                raise QualityCheckError(
+                    f"Checks críticos fallidos en comments para {ingestion_date}. "
+                    f"Revisar reporte en output/quality_reports/"
+                )
+
+        # 6. Guardar en processed/
         if not stories_deduped.empty:
             self._save_processed(stories_deduped, "stories", ingestion_date)
 
@@ -346,6 +402,28 @@ class HNProcessor:
         valid_comments = comments_df[is_valid].reset_index(drop=True)
         return valid_comments, int(orphaned_count)
 
+    def _build_valid_parent_df(
+        self, stories_df: pd.DataFrame, comments_df: pd.DataFrame
+    ) -> pd.DataFrame:
+        """
+        Construye DataFrame con todos los IDs válidos como parents
+        (unión de stories + comments) para el check de integridad referencial.
+
+        Args:
+            stories_df: DataFrame de stories procesadas
+            comments_df: DataFrame de comments procesados
+
+        Returns:
+            DataFrame con columna 'id' conteniendo todos los IDs válidos
+        """
+        story_ids = (
+            stories_df[["id"]].copy() if not stories_df.empty else pd.DataFrame()
+        )
+        comment_ids = (
+            comments_df[["id"]].copy() if not comments_df.empty else pd.DataFrame()
+        )
+        return pd.concat([story_ids, comment_ids], ignore_index=True)
+
     def _save_processed(
         self, df: pd.DataFrame, entity: str, ingestion_date: str
     ) -> None:
@@ -369,4 +447,30 @@ class HNProcessor:
                 "entity_type": entity,
                 "source_layer": "raw",
             },
+        )
+
+    def _save_quality_report(
+        self, report_dict: dict, entity: str, ingestion_date: str
+    ) -> None:
+        """
+        Persiste el reporte de calidad como JSON en output/quality_reports/.
+
+        Args:
+            report_dict: Reporte serializado como diccionario
+            entity: Entidad evaluada (stories, comments)
+            ingestion_date: Fecha de ingesta para particionamiento
+        """
+        self.writer.save(
+            layer="processed",
+            entity=f"quality_reports_{entity}",
+            data=[report_dict],
+            format="json",
+            partition_date=ingestion_date,
+            additional_metadata={
+                "report_type": "quality",
+                "entity": entity,
+            },
+        )
+        logger.info(
+            f"Reporte de calidad de {entity} persistido en output/quality_reports_{entity}/"
         )

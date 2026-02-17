@@ -181,6 +181,106 @@ class QualityRunner:
 
         return self._build_report(ingestion_date, results)
 
+    def run_transformation_story_checks(
+        self, stories_df: pd.DataFrame, ingestion_date: str
+    ) -> QualityReport:
+        """
+        Ejecuta checks sobre stories enriquecidas por la capa de transformación.
+
+        Verifica que las columnas agregadas durante el enriquecimiento
+        temporal y de topics estén presentes y sean consistentes.
+
+        Checks aplicados:
+        - NOT NULL en score_velocity, comment_velocity, hours_to_peak,
+        is_long_tail, observations_in_window (critical)
+        - hours_to_peak >= 0 (warning)
+        - observations_in_window >= 1 (warning)
+        - Volumen mínimo 1 registro (warning)
+
+        Args:
+            stories_df: DataFrame de stories enriquecidas
+            ingestion_date: Fecha de ingesta evaluada
+
+        Returns:
+            QualityReport consolidado
+        """
+        results: List[CheckResult] = [
+            check_not_null(
+                df=stories_df,
+                columns=[
+                    "score_velocity",
+                    "comment_velocity",
+                    "hours_to_peak",
+                    "is_long_tail",
+                    "observations_in_window",
+                ],
+                severity="critical",
+            ),
+            check_range(
+                df=stories_df,
+                column="hours_to_peak",
+                min_value=0,
+                severity="warning",
+            ),
+            check_range(
+                df=stories_df,
+                column="observations_in_window",
+                min_value=1,
+                severity="warning",
+            ),
+            check_volume(
+                df=stories_df,
+                entity="stories_enriched",
+                min_expected=1,
+                severity="warning",
+            ),
+        ]
+
+        return self._build_report(ingestion_date, results)
+
+    def run_transformation_comment_checks(
+        self, comments_df: pd.DataFrame, ingestion_date: str
+    ) -> QualityReport:
+        """
+        Ejecuta checks sobre comments enriquecidos por la capa de transformación.
+
+        Verifica que las columnas de sentiment estén presentes y sean válidas.
+
+        Checks aplicados:
+        - NOT NULL en sentiment_score, sentiment_label (critical)
+        - sentiment_score en rango [-1, 1] (warning)
+        - Volumen mínimo 1 registro (warning)
+
+        Args:
+            comments_df: DataFrame de comments enriquecidos
+            ingestion_date: Fecha de ingesta evaluada
+
+        Returns:
+            QualityReport consolidado
+        """
+        results: List[CheckResult] = [
+            check_not_null(
+                df=comments_df,
+                columns=["sentiment_score", "sentiment_label"],
+                severity="critical",
+            ),
+            check_range(
+                df=comments_df,
+                column="sentiment_score",
+                min_value=-1,
+                max_value=1,
+                severity="warning",
+            ),
+            check_volume(
+                df=comments_df,
+                entity="comments_enriched",
+                min_expected=1,
+                severity="warning",
+            ),
+        ]
+
+        return self._build_report(ingestion_date, results)
+
     def _build_report(
         self, ingestion_date: str, results: List[CheckResult]
     ) -> QualityReport:

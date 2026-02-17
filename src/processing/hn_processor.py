@@ -8,16 +8,10 @@ from typing import Any, Dict
 
 import pandas as pd
 
-from quality.runner import QualityRunner
+from quality.runner import QualityCheckError, QualityRunner
 from utils.layer_storage_loader import LayerStorageLoader
 from utils.layer_storage_writer import LayerStorageWriter
 from utils.logger import processing_logger as logger
-
-
-class QualityCheckError(Exception):
-    """Se lanza cuando checks de calidad críticos fallan."""
-
-    pass
 
 
 class HNProcessor:

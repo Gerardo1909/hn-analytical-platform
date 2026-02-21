@@ -120,6 +120,9 @@ dev-run: ## Ejecuta un comando en el contenedor de desarrollo (CMD=...)
 # ----------------------------------------------------------------------------
 # Contenedor prod
 # ----------------------------------------------------------------------------
+build-prod: ## Construye la imagen de producción
+	$(DOCKER_COMPOSE) --profile prod build app-prod
+
 prod-shell: ## Abre una shell en el contenedor prod
 	$(DOCKER_COMPOSE) --profile prod run --rm app-prod bash
 

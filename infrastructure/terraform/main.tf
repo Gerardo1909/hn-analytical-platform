@@ -51,3 +51,8 @@ resource "aws_s3_object" "metadata" {
   bucket = aws_s3_bucket.datalake.id
   key    = "metadata/"
 }
+
+resource "aws_s3_object" "reports" {
+  bucket = aws_s3_bucket.datalake.id
+  key    = "reports/"
+}

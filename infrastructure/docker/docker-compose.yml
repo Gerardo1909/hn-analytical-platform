@@ -22,8 +22,7 @@ x-airflow-common: &airflow-common
         - ../orchestration/dags:/opt/airflow/dags
         - ../orchestration/logs:/opt/airflow/logs
         - ../orchestration/plugins:/opt/airflow/plugins
-        - ../../src:/opt/airflow/src
-        - ../../data:/opt/airflow/data
+        - /var/run/docker.sock:/var/run/docker.sock
         - airflow-packages:/home/airflow/.local
     depends_on:
         postgres:
@@ -89,7 +88,7 @@ services:
         <<: *airflow-common
         command: scheduler
         restart: always
-        user: airflow
+        user: root
         networks:
             - airflow-network
 
@@ -156,6 +155,7 @@ services:
         build:
             context: ../..
             dockerfile: infrastructure/docker/Dockerfile
+        image: hn-analytical-platform:prod
         profiles:
             - prod
         volumes:

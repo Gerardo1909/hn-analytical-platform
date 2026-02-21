@@ -74,3 +74,4 @@ quality_logger = get_logger(name="quality_logger", filename="quality.log")
 transformation_logger = get_logger(
     name="transformation_logger", filename="transformation.log"
 )
+analytics_logger = get_logger(name="analytics_logger", filename="analytics.log")

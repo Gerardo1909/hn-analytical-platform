@@ -20,8 +20,8 @@ class LayerStorageWriter:
     Maneja particionamiento por fecha y múltiples formatos.
     """
 
-    VALID_LAYERS = {"raw", "processed", "output"}
-    VALID_FORMATS = {"json", "parquet"}
+    VALID_LAYERS = {"raw", "processed", "output", "reports"}
+    VALID_FORMATS = {"json", "parquet", "csv"}
 
     def __init__(self, bucket_name: str, s3_client):
         """
@@ -34,10 +34,10 @@ class LayerStorageWriter:
 
     def save(
         self,
-        layer: Literal["raw", "processed", "output"],
+        layer: Literal["raw", "processed", "output", "reports"],
         entity: str,
         data: List[Dict[str, Any]],
-        format: Literal["json", "parquet"] = "json",
+        format: Literal["json", "parquet", "csv"] = "json",
         partition_date: Optional[str] = None,
         additional_metadata: Optional[Dict[str, Any]] = None,
     ) -> str:
@@ -72,8 +72,10 @@ class LayerStorageWriter:
         # Preparar y guardar datos según formato
         if format == "json":
             self._save_as_json(key, data, additional_metadata)
-        else:  # parquet
+        elif format == "parquet":
             self._save_as_parquet(key, data, additional_metadata)
+        else:  # csv
+            self._save_as_csv(key, data, additional_metadata)
 
         logger.info(
             f"Guardados {len(data)} registros de {entity} en {layer}/{entity} "
@@ -179,6 +181,38 @@ class LayerStorageWriter:
             Key=key,
             Body=parquet_buffer.getvalue(),
             ContentType="application/octet-stream",
+            Metadata=metadata,
+        )
+
+    def _save_as_csv(
+        self,
+        key: str,
+        data: List[Dict[str, Any]],
+        additional_metadata: Optional[Dict[str, Any]],
+    ) -> None:
+        """
+        Guarda datos en formato CSV.
+        """
+        df = pd.DataFrame(data)
+
+        csv_buffer = io.StringIO()
+        df.to_csv(csv_buffer, index=False)
+
+        metadata = {
+            "record_count": str(len(df)),
+            "column_count": str(len(df.columns)),
+            "format": "csv",
+            "ingestion_timestamp": datetime.utcnow().isoformat(),
+        }
+
+        if additional_metadata:
+            metadata.update({k: str(v) for k, v in additional_metadata.items()})
+
+        self.s3.put_object(
+            Bucket=self.bucket_name,
+            Key=key,
+            Body=csv_buffer.getvalue().encode("utf-8"),
+            ContentType="text/csv",
             Metadata=metadata,
         )
 

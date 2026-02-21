@@ -28,7 +28,7 @@ DEFAULT_ARGS = {
 def hn_etl():
     """
     Pipeline ETL:
-    ingestion -> processing -> transformation
+    ingestion -> processing -> transformation -> analytics
     """
 
     # Argumentos comunes para todos los contenedores efímeros
@@ -65,7 +65,13 @@ def hn_etl():
         **common_docker_args,
     )
 
-    ingestion >> processing >> transformation
+    analytics = DockerOperator(
+        task_id="analytics",
+        command="python -m analytics.main {{ data_interval_end.strftime('%Y-%m-%d') }}",
+        **common_docker_args,
+    )
+
+    ingestion >> processing >> transformation >> analytics
 
 
 # Instancia del DAG

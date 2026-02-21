@@ -2,7 +2,6 @@
 Lógica de negocio para fetch de historias y comentarios.
 """
 
-from asyncio import Runner
 from datetime import datetime, timedelta
 from typing import Any, Dict, Generator, List
 

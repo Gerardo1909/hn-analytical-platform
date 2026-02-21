@@ -2,10 +2,12 @@
 DAG de orquestación del pipeline ETL de HackerNews.
 """
 
+import os
 from datetime import timedelta
 
 import pendulum
-from airflow.decorators import dag, task
+from airflow.decorators import dag
+from airflow.providers.docker.operators.docker import DockerOperator
 
 DEFAULT_ARGS = {
     "owner": "data-team",
@@ -18,7 +20,7 @@ DEFAULT_ARGS = {
     dag_id="hn_etl",
     description="ETL pipeline de HackerNews",
     start_date=pendulum.datetime(2026, 1, 1, tz="UTC"),
-    schedule=None,
+    schedule="@daily",
     catchup=False,
     default_args=DEFAULT_ARGS,
     tags=["hackernews", "etl"],
@@ -29,25 +31,41 @@ def hn_etl():
     ingestion -> processing -> transformation
     """
 
-    @task
-    def ingestion():
-        from src.ingestion.main import run
+    # Argumentos comunes para todos los contenedores efímeros
+    common_docker_args = {
+        "image": "hn-analytical-platform:prod",
+        "api_version": "auto",
+        "auto_remove": "force",
+        "network_mode": "docker_airflow-network",
+        "docker_url": "unix://var/run/docker.sock",
+        "mount_tmp_dir": False,  # Evita problemas de permisos con el directorio temporal de Airflow
+        "environment": {
+            "AWS_ACCESS_KEY_ID": os.getenv("AWS_ACCESS_KEY_ID"),
+            "AWS_SECRET_ACCESS_KEY": os.getenv("AWS_SECRET_ACCESS_KEY"),
+            "AWS_ENDPOINT_URL": os.getenv("AWS_ENDPOINT_URL"),
+            "AWS_BUCKET_NAME": os.getenv("AWS_BUCKET_NAME"),
+        },
+    }
 
-        run()
+    ingestion = DockerOperator(
+        task_id="ingestion",
+        command="python -m ingestion.main",
+        **common_docker_args,
+    )
 
-    @task
-    def processing():
-        from src.processing.main import run
+    processing = DockerOperator(
+        task_id="processing",
+        command="python -m processing.main {{ data_interval_end.strftime('%Y-%m-%d') }}",
+        **common_docker_args,
+    )
 
-        run()
+    transformation = DockerOperator(
+        task_id="transformation",
+        command="python -m transformation.main {{ data_interval_end.strftime('%Y-%m-%d') }}",
+        **common_docker_args,
+    )
 
-    @task
-    def transformation():
-        from src.transformation.main import run
-
-        run()
-
-    ingestion() >> processing() >> transformation()
+    ingestion >> processing >> transformation
 
 
 # Instancia del DAG

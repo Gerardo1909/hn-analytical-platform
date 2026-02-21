@@ -3,24 +3,20 @@ FROM apache/airflow:2.10.4
 
 USER root
 
-# Copiar código fuente con permisos correctos
-COPY --chown=airflow:root ./src /opt/airflow/src
-COPY --chown=airflow:root ./pyproject.toml /opt/airflow/
+# Instalar docker CLI para que Airflow pueda interactuar con el daemon de Docker
+RUN apt-get update && apt-get install -y docker.io && apt-get clean
 
 # Cambiar a usuario airflow ANTES de instalar paquetes
 USER airflow
 
 WORKDIR /opt/airflow
 
-# Instalar solo las dependencias esenciales para el ETL
-RUN pip install --no-cache-dir \
-    boto3==1.35.0 \
-    python-dotenv==1.0.0
+# Instalar el provider de Docker para Airflow
+RUN pip install --no-cache-dir apache-airflow-providers-docker
 
 # Variables de entorno
-ENV PYTHONPATH="/opt/airflow:${PYTHONPATH}"
 ENV PYTHONUNBUFFERED=1
 
-# Healthcheck personalizado
+# Healthcheck simple
 HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
-    CMD python -c "import sys; import boto3; sys.exit(0)"
+    CMD python -c "import sys; sys.exit(0)"

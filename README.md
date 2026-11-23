@@ -1,5 +1,7 @@
 # HN Analytical Platform
 
+> **Summary:** A batch data platform that ingests top Hacker News stories and their recursive comments from the public API into a medallion lakehouse (bronze/silver/gold) of partitioned Parquet files on S3-compatible storage (MinIO locally). Apache Airflow orchestrates the idempotent pipeline, Terraform provisions the buckets and prefixes, and DuckDB serves SQL reports exported as CSV, with data quality checks, TF-IDF topic and VADER sentiment enrichment. The repo contains 222 pytest tests (counted from `def test_` in `tests/`).
+
 Data lake batch completo basado en datos públicos de **Hacker News**. Pipeline idempotente: ingesta de API → enriquecimiento temporal + NLP → reportes analíticos en CSV.
 
 ![scraping-workflow](images/workflow_diagram.png)
@@ -17,8 +19,8 @@ Plataforma de **datos batch** que:
 - **Reporta** KPIs de negocio en formato CSV consumible
 
 **Periodicidad:** Daily (configurable)  
-**SLA:** Runs complete in ~5-15 minutos (sin fallos de red)  
-**Volumen típico:** 500-2000 stories + 10-50k comentarios por día  
+**SLA:** Runs complete in ~5-15 minutos (sin fallos de red) (estimado, no medido en el repo)  
+**Volumen típico:** 500-2000 stories + 10-50k comentarios por día (estimado, no medido en el repo)  
 **Almacenamiento:** S3 (MinIO local) con particionamiento por fecha de ingesta
 
 ---
@@ -357,4 +359,4 @@ Todas las queries se ejecutan en **analytics/main.py** → guardan CSV en `repor
 
 **Autor:** Gerardo Toboso  
 **Contacto:** gerardotoboso1909@gmail.com  
-**Licencia:** MIT License
+**Licencia:** MIT License (ver [LICENSE](LICENSE))
